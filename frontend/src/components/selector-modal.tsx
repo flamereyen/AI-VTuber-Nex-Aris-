@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, memo, useCallback, useMemo } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,7 +28,7 @@ interface DownloadProgress {
   elapsed_time?: number
 }
 
-export default function AIModelSelector() {
+function AIModelSelector() {
     
 const [open, setOpen] = useState(false)
   const [internalSelected, setInternalSelected] = useState<AIModel | null>(null)
@@ -37,7 +37,7 @@ const [open, setOpen] = useState(false)
   const [downloading, setDownloading] = useState<Record<string, string>>({}) // modelName -> downloadId
   const [downloadProgress, setDownloadProgress] = useState<Record<string, DownloadProgress>>({})
 
-  const loadModels = async () => {
+  const loadModels = useCallback(async () => {
     try {
       const res = await fetch("/api/llm/models")
       const data = await res.json()
@@ -94,7 +94,7 @@ const [open, setOpen] = useState(false)
     }
   }, [downloading])
 
-  const handleModelSelect = (model: AIModel) => {
+  const handleModelSelect = useCallback((model: AIModel) => {
     setInternalSelected(model)
     fetch("/api/settings/update", {
       method: "POST",
@@ -102,9 +102,9 @@ const [open, setOpen] = useState(false)
       body: JSON.stringify({ settings: { "llm.model_filename": model.fileName } }),
     })
     setOpen(false)
-  }
+  }, [])
 
-  const handleDownload = async (model: AIModel) => {
+  const handleDownload = useCallback(async (model: AIModel) => {
     try {
       const res = await fetch("/api/llm/models/download", {
         method: "POST",
@@ -350,3 +350,6 @@ const [open, setOpen] = useState(false)
     </Dialog>
   )
 }
+
+// Memoize the component for performance
+export default memo(AIModelSelector)

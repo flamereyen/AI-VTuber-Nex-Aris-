@@ -21,6 +21,7 @@ from services.Character.characterManager import CharacterManager
 from services.lib.LAV_logger import logger
 from services.lib.port_forward import create_proxy_middleware
 from services.lib.process_manager import process_manager
+from services.lib.async_helpers import async_retry, async_timeout, cached, cache
 import os
 import aiofiles
 import aiohttp
@@ -1166,6 +1167,8 @@ class CloudConfigRequest(BaseModel):
     config: Dict[str, Any]
 
 @app.post("/api/cloud/llm/glm")
+@async_timeout(30.0)
+@async_retry(max_retries=2, delay=1.0)
 async def cloud_llm_completion(request: CloudLLMRequest):
     """Get completion from GLM 4.5 API with fallback to local"""
     try:
@@ -1190,6 +1193,8 @@ async def cloud_llm_completion(request: CloudLLMRequest):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.post("/api/cloud/tts/elevenlabs")
+@async_timeout(45.0)
+@async_retry(max_retries=2, delay=1.0)
 async def cloud_tts_synthesis(request: CloudTTSRequest):
     """Synthesize text using ElevenLabs with fallback to local"""
     try:
@@ -1218,6 +1223,7 @@ async def cloud_tts_synthesis(request: CloudTTSRequest):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.get("/api/cloud/status")
+@cached(ttl=60.0)  # Cache for 1 minute
 async def get_cloud_status():
     """Get status of all cloud providers"""
     try:

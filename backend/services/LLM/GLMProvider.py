@@ -9,6 +9,7 @@ import time
 import logging
 from typing import Dict, List, Optional, AsyncGenerator
 from dataclasses import dataclass
+from ..lib.connection_pool import get_http_session
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,6 @@ class GLMProvider:
     
     def __init__(self, config: GLMConfig):
         self.config = config
-        self.session: Optional[aiohttp.ClientSession] = None
         self.request_count = 0
         self.rate_limit_window = 60  # 1 minute
         self.max_requests_per_minute = 200
@@ -47,37 +47,11 @@ class GLMProvider:
         }
         
     async def __aenter__(self):
-        await self._ensure_session()
         return self
         
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
+        pass  # Connection pool cleanup handled globally
     
-    async def _ensure_session(self):
-        """Ensure aiohttp session is available"""
-        if not self.session or self.session.closed:
-            connector = aiohttp.TCPConnector(
-                limit=100,
-                limit_per_host=30,
-                keepalive_timeout=30,
-                enable_cleanup_closed=True
-            )
-            timeout = aiohttp.ClientTimeout(total=self.config.timeout)
-            self.session = aiohttp.ClientSession(
-                connector=connector,
-                timeout=timeout,
-                headers={
-                    "Authorization": f"Bearer {self.config.api_key}",
-                    "Content-Type": "application/json",
-                    "User-Agent": "AI-VTuber-Nex-Aris/1.0"
-                }
-            )
-            
-    async def close(self):
-        """Close the aiohttp session"""
-        if self.session and not self.session.closed:
-            await self.session.close()
-            
     def _check_rate_limit(self) -> bool:
         """Check if we're within rate limits"""
         now = time.time()
@@ -147,26 +121,18 @@ class GLMProvider:
         if not self._check_rate_limit():
             raise Exception("Rate limit exceeded. Please wait before making more requests.")
         
-        await self._ensure_session()
-        
-        messages = self._format_messages(text, history, system_prompt)
-        
-        payload = {
-            "model": self.config.model,
-            "messages": messages,
-            "max_tokens": kwargs.get("max_tokens", self.config.max_tokens),
-            "temperature": kwargs.get("temperature", self.config.temperature),
-            "top_p": kwargs.get("top_p", self.config.top_p),
-            "stream": stream
-        }
-        
-        url = f"{self.config.base_url}/chat/completions"
-        
         for attempt in range(self.config.max_retries):
             try:
                 self._add_request_timestamp()
                 
-                async with self.session.post(url, json=payload) as response:
+                # Use connection pool
+                session = await get_http_session()
+                headers = {
+                    "Authorization": f"Bearer {self.config.api_key}",
+                    "Content-Type": "application/json"
+                }
+                
+                async with session.post(url, json=payload, headers=headers) as response:
                     if response.status == 200:
                         if stream:
                             return await self._handle_streaming_response(response)
@@ -254,8 +220,6 @@ class GLMProvider:
         if not self._check_rate_limit():
             raise Exception("Rate limit exceeded. Please wait before making more requests.")
         
-        await self._ensure_session()
-        
         messages = self._format_messages(text, history, system_prompt)
         
         payload = {
@@ -271,7 +235,14 @@ class GLMProvider:
         
         self._add_request_timestamp()
         
-        async with self.session.post(url, json=payload) as response:
+        # Use connection pool
+        session = await get_http_session()
+        headers = {
+            "Authorization": f"Bearer {self.config.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        async with session.post(url, json=payload, headers=headers) as response:
             if response.status != 200:
                 error_text = await response.text()
                 logger.error(f"GLM API streaming error {response.status}: {error_text}")
