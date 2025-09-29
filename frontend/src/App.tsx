@@ -1,4 +1,5 @@
 import './App.css'
+import './styles/scifi-theme.css'
 import { ThemeProvider } from "@/components/theme-provider"
 import Mainpage from './pages/mainpage'
 import { Toaster } from "@/components/ui/sonner"

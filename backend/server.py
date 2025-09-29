@@ -29,10 +29,11 @@ from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 from services.LLM.LLM import LLM
+from services.CloudManager import cloud_manager
 from pydantic import BaseModel
 from datetime import datetime
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import mss
 import traceback
 import threading
@@ -1144,6 +1145,116 @@ async def query_memory_context(request: QueryContextRequest):
     except Exception as e:
         logger.error(f"Error querying memory context: {e}", exc_info=True)
         return JSONResponse(status_code=500, content={"error": "Failed to query memory context"})
+
+# *******************************
+# Cloud Providers API
+# *******************************
+
+class CloudLLMRequest(BaseModel):
+    text: str
+    history: List[Dict] = []
+    system_prompt: str = ""
+    use_cloud: bool = True
+
+class CloudTTSRequest(BaseModel):
+    text: str
+    voice_id: Optional[str] = None
+    use_cloud: bool = True
+
+class CloudConfigRequest(BaseModel):
+    provider: str
+    config: Dict[str, Any]
+
+@app.post("/api/cloud/llm/glm")
+async def cloud_llm_completion(request: CloudLLMRequest):
+    """Get completion from GLM 4.5 API with fallback to local"""
+    try:
+        async def local_fallback(text, history, system_prompt, **kwargs):
+            # Use existing LLM instance as fallback
+            return llm.get_completion(text, history, system_prompt)
+        
+        response = await cloud_manager.get_llm_completion(
+            text=request.text,
+            history=request.history,
+            system_prompt=request.system_prompt,
+            use_cloud=request.use_cloud,
+            fallback_callback=local_fallback
+        )
+        
+        return JSONResponse(content={
+            "response": response,
+            "provider": "glm" if request.use_cloud else "local"
+        })
+    except Exception as e:
+        logger.error(f"Cloud LLM error: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/api/cloud/tts/elevenlabs")
+async def cloud_tts_synthesis(request: CloudTTSRequest):
+    """Synthesize text using ElevenLabs with fallback to local"""
+    try:
+        async def local_fallback(text, voice_id, **kwargs):
+            # Use existing TTS instance as fallback
+            result = tts.synthesize(text)
+            # Convert to bytes if needed
+            if hasattr(result, 'read'):
+                return result.read()
+            return result
+        
+        audio_data = await cloud_manager.get_tts_synthesis(
+            text=request.text,
+            voice_id=request.voice_id,
+            use_cloud=request.use_cloud,
+            fallback_callback=local_fallback
+        )
+        
+        return Response(
+            content=audio_data,
+            media_type="audio/wav",
+            headers={"Content-Disposition": "attachment; filename=synthesis.wav"}
+        )
+    except Exception as e:
+        logger.error(f"Cloud TTS error: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/api/cloud/status")
+async def get_cloud_status():
+    """Get status of all cloud providers"""
+    try:
+        status = cloud_manager.get_provider_status()
+        health = await cloud_manager.health_check()
+        
+        return JSONResponse(content={
+            "providers": status,
+            "health": health,
+            "available_providers": cloud_manager.get_available_providers()
+        })
+    except Exception as e:
+        logger.error(f"Cloud status error: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/api/cloud/config")
+async def update_cloud_config(request: CloudConfigRequest):
+    """Update cloud provider configuration"""
+    try:
+        success = cloud_manager.update_provider_config(
+            request.provider, 
+            request.config
+        )
+        
+        if success:
+            return JSONResponse(content={
+                "message": f"Updated {request.provider} configuration",
+                "success": True
+            })
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"Failed to update {request.provider} configuration"}
+            )
+    except Exception as e:
+        logger.error(f"Config update error: {e}", exc_info=True)
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 # Add RVC proxy middleware
 app.middleware("http")(create_proxy_middleware("/api/rvc", rvc_server_port))

@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import asyncio
 from services.lib.LAV_logger import logger
 
 from .BaseLLM import BaseLLM
@@ -223,6 +224,47 @@ class LLM:
         """Update sampling parameters - no model reload needed as these are inference-time parameters"""
         self.sampling_params.update(params)
         logger.info(f"Updated sampling parameters: {self.sampling_params}")
+
+    async def get_completion_async(self, text, history, system_prompt, screenshot=False, use_cloud=True):
+        """
+        Async version of get_completion with cloud provider integration
+        
+        Args:
+            text: User input text
+            history: Conversation history
+            system_prompt: System prompt
+            screenshot: Whether to include screenshot for vision models
+            use_cloud: Whether to try cloud providers first
+            
+        Returns:
+            Generated response text
+        """
+        try:
+            # Try cloud provider first if enabled
+            if use_cloud:
+                try:
+                    from ..CloudManager import cloud_manager
+                    
+                    async def local_fallback(text, history, system_prompt, **kwargs):
+                        return self.get_completion(text, history, system_prompt, screenshot)
+                    
+                    response = await cloud_manager.get_llm_completion(
+                        text=text,
+                        history=history,
+                        system_prompt=system_prompt,
+                        use_cloud=use_cloud,
+                        fallback_callback=local_fallback
+                    )
+                    return response
+                except Exception as e:
+                    logger.warning(f"Cloud LLM failed, falling back to local: {e}")
+            
+            # Fallback to local processing
+            return self.get_completion(text, history, system_prompt, screenshot)
+            
+        except Exception as e:
+            logger.error(f"Error in async completion: {e}")
+            raise e
 
     def get_completion(self, text, history, system_prompt, screenshot=False):
         if not self.llm:

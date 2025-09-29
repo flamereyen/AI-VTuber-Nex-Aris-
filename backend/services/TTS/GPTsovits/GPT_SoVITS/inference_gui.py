@@ -23,11 +23,19 @@ class GPTSoVITSGUI(QMainWindow):
 
         self.setStyleSheet("""
             QWidget {
-                background-color: #a3d3b1; 
+                background-color: #000000;
+                color: #00FFFF;
+                font-family: 'Consolas', 'Courier New', monospace;
+            }
+
+            QMainWindow {
+                background-color: #000000;
+                border: 2px solid #00FFFF;
             }
 
             QTabWidget::pane {
-                background-color: #a3d3b1;  
+                background-color: #0a0a0a;
+                border: 1px solid #00FFFF;
             }
 
             QTabWidget::tab-bar {
@@ -35,31 +43,148 @@ class GPTSoVITSGUI(QMainWindow):
             }
 
             QTabBar::tab {
-                background: #8da4bf; 
-                color: #ffffff;  
-                padding: 8px;
+                background: rgba(0, 255, 255, 0.1);
+                color: #00FFFF;
+                padding: 12px 16px;
+                border: 1px solid #00FFFF;
+                margin: 2px;
+                font-weight: bold;
+                text-transform: uppercase;
             }
 
             QTabBar::tab:selected {
-                background: #2a3f54; 
+                background: rgba(0, 255, 255, 0.3);
+                color: #000000;
+            }
+
+            QTabBar::tab:hover {
+                background: rgba(0, 255, 255, 0.2);
             }
 
             QLabel {
-                color: #000000;  
+                color: #00FFFF;
+                font-weight: bold;
+                text-shadow: 0px 0px 10px #00FFFF;
+                padding: 8px 0px;
+            }
+
+            QLineEdit {
+                background-color: rgba(0, 255, 255, 0.05);
+                color: #00FFFF;
+                border: 1px solid #00FFFF;
+                border-radius: 4px;
+                padding: 8px 12px;
+                font-family: 'Consolas', 'Courier New', monospace;
+            }
+
+            QLineEdit:focus {
+                background-color: rgba(0, 255, 255, 0.1);
+                border: 2px solid #00FFFF;
+                box-shadow: 0px 0px 20px rgba(0, 255, 255, 0.3);
+            }
+
+            QLineEdit:read-only {
+                background-color: rgba(0, 255, 255, 0.02);
+                border: 1px solid rgba(0, 255, 255, 0.3);
+            }
+
+            QTextEdit {
+                background-color: rgba(0, 255, 255, 0.05);
+                color: #00FFFF;
+                border: 1px solid #00FFFF;
+                border-radius: 4px;
+                padding: 8px;
+                font-family: 'Consolas', 'Courier New', monospace;
+            }
+
+            QComboBox {
+                background-color: rgba(0, 255, 255, 0.05);
+                color: #00FFFF;
+                border: 1px solid #00FFFF;
+                border-radius: 4px;
+                padding: 8px 12px;
+                font-family: 'Consolas', 'Courier New', monospace;
+            }
+
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+
+            QComboBox::down-arrow {
+                image: none;
+                border: 1px solid #00FFFF;
+                width: 0;
+                height: 0;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #00FFFF;
+            }
+
+            QComboBox QAbstractItemView {
+                background-color: #0a0a0a;
+                color: #00FFFF;
+                border: 1px solid #00FFFF;
+                selection-background-color: rgba(0, 255, 255, 0.3);
             }
 
             QPushButton {
-                background-color: #4CAF50; 
-                color: white;  
-                padding: 8px;
-                border: 1px solid #4CAF50;
+                background-color: transparent;
+                color: #00FFFF;
+                border: 2px solid #00FFFF;
                 border-radius: 4px;
+                padding: 10px 16px;
+                font-family: 'Consolas', 'Courier New', monospace;
+                font-weight: bold;
+                text-transform: uppercase;
+                text-shadow: 0px 0px 10px #00FFFF;
             }
 
             QPushButton:hover {
-                background-color: #45a049;  
-                border: 1px solid #45a049;
-                box-shadow: 2px 2px 2px rgba(0, 0, 0, 0.1);
+                background-color: rgba(0, 255, 255, 0.1);
+                border: 2px solid #00FFFF;
+                box-shadow: 0px 0px 20px rgba(0, 255, 255, 0.5);
+            }
+
+            QPushButton:pressed {
+                background-color: rgba(0, 255, 255, 0.2);
+                transform: translateY(1px);
+            }
+
+            QPushButton#synthesize_button {
+                background-color: rgba(0, 255, 0, 0.1);
+                border: 2px solid #00FF00;
+                color: #00FF00;
+                text-shadow: 0px 0px 10px #00FF00;
+            }
+
+            QPushButton#synthesize_button:hover {
+                background-color: rgba(0, 255, 0, 0.2);
+                box-shadow: 0px 0px 30px rgba(0, 255, 0, 0.5);
+            }
+
+            QPushButton#clear_output_button {
+                background-color: rgba(255, 0, 102, 0.1);
+                border: 2px solid #FF0066;
+                color: #FF0066;
+                text-shadow: 0px 0px 10px #FF0066;
+            }
+
+            QPushButton#clear_output_button:hover {
+                background-color: rgba(255, 0, 102, 0.2);
+                box-shadow: 0px 0px 30px rgba(255, 0, 102, 0.5);
+            }
+
+            QStatusBar {
+                background-color: #0a0a0a;
+                color: #00FFFF;
+                border-top: 1px solid #00FFFF;
+                font-family: 'Consolas', 'Courier New', monospace;
+            }
+
+            QFileDialog {
+                background-color: #000000;
+                color: #00FFFF;
             }
         """)    
 
@@ -134,9 +259,11 @@ class GPTSoVITSGUI(QMainWindow):
         ])
 
         self.synthesize_button = QPushButton("合成")
+        self.synthesize_button.setObjectName("synthesize_button")
         self.synthesize_button.clicked.connect(self.synthesize)
 
         self.clear_output_button = QPushButton("清空输出")
+        self.clear_output_button.setObjectName("clear_output_button")
         self.clear_output_button.clicked.connect(self.clear_output)
 
         self.status_bar = QStatusBar()

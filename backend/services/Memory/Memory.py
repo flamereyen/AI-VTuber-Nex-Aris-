@@ -2,9 +2,11 @@ import json
 import os
 import re
 import uuid
+import time
+import hashlib
+from functools import lru_cache
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue, Distance, VectorParams
-import time
 from ..lib.LAV_logger import logger
 import datetime
 from typing import List, Dict, Any, Optional
@@ -22,6 +24,29 @@ class Memory:
             self.client = QdrantClient(path=self.data_path)
         
         self.client.set_model("sentence-transformers/all-MiniLM-L6-v2")
+        
+        # Simple caching system for query performance
+        self._query_cache = {}
+        self._cache_ttl = 300  # 5 minutes
+        self._max_cache_size = 100
+    
+    def _get_cache_key(self, text: str, limit: int) -> str:
+        """Generate cache key for query"""
+        return hashlib.md5(f"{text}:{limit}".encode()).hexdigest()
+    
+    def _is_cache_valid(self, timestamp: float) -> bool:
+        """Check if cache entry is still valid"""
+        return time.time() - timestamp < self._cache_ttl
+    
+    def _clean_cache(self):
+        """Clean expired cache entries"""
+        current_time = time.time()
+        expired_keys = [
+            key for key, (_, timestamp) in self._query_cache.items()
+            if current_time - timestamp > self._cache_ttl
+        ]
+        for key in expired_keys:
+            del self._query_cache[key]
     
     def check_collection_exists(self):
         if not self.client.collection_exists(self.MESSAGE_COLLECTION_NAME):
@@ -105,16 +130,41 @@ class Memory:
             return None
 
     def query(self, text, limit = 3)  -> list:
-        if not self.check_collection_exists(): return []
+        if not self.check_collection_exists(): 
+            return []
+        
+        # Check cache first
+        cache_key = self._get_cache_key(text, limit)
+        if cache_key in self._query_cache:
+            result, timestamp = self._query_cache[cache_key]
+            if self._is_cache_valid(timestamp):
+                logger.debug(f"Cache hit for query: {text[:50]}...")
+                return result
+        
+        # Clean expired cache entries periodically  
+        if len(self._query_cache) > 10:
+            self._clean_cache()
+        
+        # Perform actual query
         search_result = self.client.query(
             collection_name=self.MESSAGE_COLLECTION_NAME,
             query_text = text,
             limit = limit
         )
-        # logger.debug(f"Search result: {search_result}")
+        
         result = []
         for s in search_result:
             result.append(s.metadata)
+        
+        # Cache the result
+        self._query_cache[cache_key] = (result, time.time())
+        
+        # Manage cache size
+        if len(self._query_cache) > self._max_cache_size:
+            oldest_key = min(self._query_cache.keys(), 
+                            key=lambda k: self._query_cache[k][1])
+            del self._query_cache[oldest_key]
+        
         return result
 
     def get(self, limit = 50, offset = 0):
