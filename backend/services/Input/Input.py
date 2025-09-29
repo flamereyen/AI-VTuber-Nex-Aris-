@@ -1,6 +1,9 @@
 import asyncio
 import os
 import wave
+import time
+from functools import lru_cache
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import WebSocket
 import sounddevice as sd
 import numpy as np
@@ -25,16 +28,42 @@ class VoiceInput:
     PRE_SPEECH_SAMPLES = 0.5 * SAMPLING_RATE
     POST_SPEECH_SAMPLES = 0.5 * SAMPLING_RATE
 
-    vad_model = load_silero_vad()
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    whisper_model = WhisperModel("medium", device=device)
+    # Performance optimizations: lazy loading and caching
+    _vad_model = None
+    _whisper_model = None
+    
+    @classmethod
+    @lru_cache(maxsize=1)
+    def get_vad_model(cls):
+        if cls._vad_model is None:
+            cls._vad_model = load_silero_vad()
+        return cls._vad_model
+    
+    @classmethod 
+    @lru_cache(maxsize=1)
+    def get_whisper_model(cls):
+        if cls._whisper_model is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            cls._whisper_model = WhisperModel("medium", device=device)
+        return cls._whisper_model
 
-    vad_iterator = VADIterator(vad_model, sampling_rate=SAMPLING_RATE)
+    @property 
+    def vad_model(self):
+        return self.get_vad_model()
+        
+    @property
+    def whisper_model(self):
+        return self.get_whisper_model()
+
+    vad_iterator = None  # Will be initialized lazily
     running = False
 
     def __init__(self):
         self._reset_buffers()
         self.last_transcription = None
+        # Initialize VAD iterator lazily
+        if self.vad_iterator is None:
+            self.vad_iterator = VADIterator(self.vad_model, sampling_rate=self.SAMPLING_RATE)
 
     def _reset_buffers(self):
         self.sentence_audio_buffer = []

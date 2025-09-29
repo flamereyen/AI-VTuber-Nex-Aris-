@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, memo, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Square, Plus, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
@@ -251,4 +251,4 @@ const Chatbox = () => {
     );
 };
 
-export default Chatbox;
+export default memo(Chatbox);
