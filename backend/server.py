@@ -21,7 +21,8 @@ from services.Character.characterManager import CharacterManager
 from services.lib.LAV_logger import logger
 from services.lib.port_forward import create_proxy_middleware
 from services.lib.process_manager import process_manager
-from services.lib.async_helpers import async_retry, async_timeout, cached, cache
+from services.lib.async_helpers import async_retry, async_timeout, cached, cache, cleanup_executors
+from services.lib.connection_pool import cleanup_pools
 import os
 import aiofiles
 import aiohttp
@@ -1271,4 +1272,20 @@ if __name__ == "__main__":
     finally:
         # Stop all managed processes on shutdown
         process_manager.stop_all_servers()
+        
+        # Cleanup async resources
+        import asyncio
+        try:
+            # Clean up cloud manager
+            asyncio.run(cloud_manager.cleanup())
+            # Clean up connection pools
+            asyncio.run(cleanup_pools())
+            # Clean up thread executors
+            cleanup_executors()
+            # Clear cache
+            asyncio.run(cache.clear())
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
+        
+        logger.info("Server shutdown complete")
 
